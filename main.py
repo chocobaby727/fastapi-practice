@@ -1,3 +1,4 @@
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from pprint import pprint
 from typing import Optional
@@ -15,13 +16,11 @@ tags_metadata = [
 app = FastAPI(openapi_tags=tags_metadata)
 
 BASE_SCHEMA_EXTRA = {
-    "example": {
-        "id": 1,
-        "title": "サンプル",
-        "description": "説明",
-        "priority": 5,
-        "complete": True,
-    }
+    "id": 1,
+    "title": "サンプル",
+    "description": "説明",
+    "priority": 5,
+    "complete": True,
 }
 
 
@@ -43,20 +42,36 @@ class TodoIn(BaseTodo):
 
 
 class TodoOut(BaseTodo):
-    created_at: datetime = Field(description="作成日時")
+    created_at: datetime = Field(description="作成日時", default=datetime.now())
+    updated_at: datetime = Field(description="更新日時", default=datetime.now())
 
     class Config:
         @staticmethod
         def schema_extra(schema: dict, _: type["TodoOut"]):
             schema["example"] = {
-                **BASE_SCHEMA_EXTRA["example"],
+                **BASE_SCHEMA_EXTRA,
                 **{"create_at": datetime.today()},
             }
 
+@dataclass(frozen=True)        
+class Todo:
+    id: str
+    title: str
+    description: str
+    priority: int
+    complete: bool
+    created_at: datetime = datetime.now()
+    updated_at: datetime = datetime.now()
+    
+    def update(self, todo: TodoIn) -> type["Todo"]:
+        updated_todo = todo.dict()
+        return replace(self, **{**updated_todo, **{"updated_at": datetime.now()}})
+    
+
 
 TODOS = [
-    TodoIn(id=1, title="テスト1", description="テストのTodo", priority=5, complete=False),
-    TodoIn(id=2, title="テスト2", description="テストのTodo", priority=1, complete=False),
+    Todo(id=1, title="テスト1", description="テストのTodo", priority=5, complete=False),
+    Todo(id=2, title="テスト2", description="テストのTodo", priority=1, complete=False),
 ]
 
 
@@ -130,3 +145,19 @@ async def create_todo(todo: TodoIn) -> None:
         )
 
     TODOS.append(todo)
+
+
+@app.put("/todos/{todo_id}", tags=["todos"], status_code=status.HTTP_200_OK)
+async def update_todo(todo_id: int, todo_in: TodoIn) -> None:
+    for i in range(len(TODOS)):
+        todo = TODOS[i]
+        if todo.id == todo_id:
+            updated_todo = todo.update(todo_in)
+            TODOS[i] = updated_todo
+            break 
+        
+    else:
+        raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="todo not found",
+            )
