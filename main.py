@@ -3,8 +3,12 @@ from datetime import datetime
 from pprint import pprint
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Path, status
+from fastapi import FastAPI, HTTPException, Path, status, Depends
 from pydantic import BaseModel, Field
+from database import get_db
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+from model import Todos as TodoModel
 
 tags_metadata = [
     {
@@ -16,7 +20,6 @@ tags_metadata = [
 app = FastAPI(openapi_tags=tags_metadata)
 
 BASE_SCHEMA_EXTRA = {
-    "id": 1,
     "title": "サンプル",
     "description": "説明",
     "priority": 5,
@@ -25,7 +28,6 @@ BASE_SCHEMA_EXTRA = {
 
 
 class BaseTodo(BaseModel):
-    id: int = Field(description="タスクのID")
     title: str = Field(description="タスク名")
     description: str = Field(description="タスクの説明")
     priority: int = Field(description="タスクの重要度", gt=0, lt=6)
@@ -33,24 +35,31 @@ class BaseTodo(BaseModel):
 
     class Config:
         @staticmethod
-        def schema_extra(schema: dict, _: type["TodoOut"]):
+        def schema_extra(schema: dict, _: type["BaseTodo"]):
             schema["example"] = BASE_SCHEMA_EXTRA
 
 
 class TodoIn(BaseTodo):
-    id: Optional[int] = Field(description="タスクのID")
+    pass
 
 
 class TodoOut(BaseTodo):
+    id: int = Field(description="タスクのID")
     created_at: datetime = Field(description="作成日時", default=datetime.now())
     updated_at: datetime = Field(description="更新日時", default=datetime.now())
 
     class Config:
+        orm_mode = True
+        
         @staticmethod
         def schema_extra(schema: dict, _: type["TodoOut"]):
             schema["example"] = {
                 **BASE_SCHEMA_EXTRA,
-                **{"create_at": datetime.today()},
+                **{
+                    "id": 1,
+                    "create_at": datetime.today(),
+                    "updated_at": datetime.today(),
+                },
             }
 
 @dataclass(frozen=True)        
@@ -80,12 +89,16 @@ TODOS = [
     tags=["todo"],
     status_code=status.HTTP_200_OK,
     response_description="全てのタスク",
+    response_model=list[TodoOut],
 )
-async def get_todos() -> list[TodoOut]:
+async def get_todos(db: Session = Depends(get_db)) -> list[TodoOut]:
     """
     タスクを全件取得する
     """
-    return TODOS
+    
+    todos = db.execute(select(TodoModel)).scalars().all()
+    
+    return todos
 
 
 @app.get(
@@ -93,8 +106,9 @@ async def get_todos() -> list[TodoOut]:
     tags=["todo"],
     status_code=status.HTTP_200_OK,
     response_description="１件のタスク",
+    response_model=TodoOut
 )
-async def get_todo(todo_id: int = Path(gt=0)) -> TodoOut:
+async def get_todo(todo_id: int = Path(gt=0), db: Session = Depends(get_db)) -> TodoOut:
     """
     タスクを１件取得する
 
@@ -102,7 +116,8 @@ async def get_todo(todo_id: int = Path(gt=0)) -> TodoOut:
 
     - **todo_id**: タスクのID
     """
-    todo = next((x for x in TODOS if x.id == todo_id), None)
+    
+    todo = db.execute(select(TodoModel).where(TodoModel.id == todo_id)).scalar()
 
     if todo is None:
         raise HTTPException(
@@ -116,48 +131,61 @@ async def get_todo(todo_id: int = Path(gt=0)) -> TodoOut:
 @app.post(
     "/todos",
     tags=["todo"],
-    status_code=status.HTTP_201_CREATED,
-    response_description="特になし",
+    status_code=status.HTTP_200_OK,
+    response_description="作成された Todo",
+    response_model=TodoOut
 )
-async def create_todo(todo: TodoIn) -> None:
+async def create_todo(todo: TodoIn, db: Session = Depends(get_db)) -> TodoOut:
     """
     タスクを１件登録する
 
     既に登録済みのタスクIDが指定された場合エラー
 
-    - **id**: タスクのID
-        - 指定しない場合オートインクリメントする
     - **title**: タスク名
     - **description**: タスクの説明
     - **priority**: タスクの重要度
     - **complete**: タスクが完了したかどうか
     """
+    
+    todo_model = TodoModel(**todo.dict())
+    
+    db.add(todo_model)
+    db.commit()
+    db.refresh(todo_model)
+    
+    return todo_model
 
-    if todo.id is None:
-        todo.id = len(TODOS) + 1
 
-    todo_ids = [x.id for x in TODOS]
+@app.put("/todos/{todo_id}", tags=["todo"], status_code=status.HTTP_200_OK)
+async def update_todo(todo_id: int, todo_in: TodoIn, db: Session = Depends(get_db)) -> None:
+    """
+    タスクを１件更新する
 
-    if todo.id in todo_ids:
+    登録済みのタスクID以外が指定された場合エラー
+
+    - **id**: タスクのID
+    - **title**: タスク名
+    - **description**: タスクの説明
+    - **priority**: タスクの重要度
+    - **complete**: タスクが完了したかどうか
+    """
+    
+    todo: TodoModel = db.execute(select(TodoModel).where(TodoModel.id == todo_id)).scalar()
+    
+    if todo is None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="id duplicated",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="todo not found",
         )
-
-    TODOS.append(todo)
-
-
-@app.put("/todos/{todo_id}", tags=["todos"], status_code=status.HTTP_200_OK)
-async def update_todo(todo_id: int, todo_in: TodoIn) -> None:
-    for i in range(len(TODOS)):
-        todo = TODOS[i]
-        if todo.id == todo_id:
-            updated_todo = todo.update(todo_in)
-            TODOS[i] = updated_todo
-            break 
         
-    else:
-        raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="todo not found",
-            )
+    todo.title = todo_in.title
+    todo.description = todo_in.description
+    todo.priority = todo_in.priority
+    todo.complete = todo_in.complete
+    todo.updated_at = datetime.today()
+    
+    db.add(todo)
+    db.commit()
+    db.refresh(todo)
+
+    return todo
