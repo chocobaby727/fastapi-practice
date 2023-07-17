@@ -1,5 +1,5 @@
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 DB_URL = "mysql+pymysql://root@db:3306/sample?charset=utf8"
 
@@ -7,6 +7,7 @@ db_engine = create_engine(DB_URL, echo=True)
 db_session = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
 
 Base = declarative_base()
+
 
 def get_db():
     with db_session() as session:

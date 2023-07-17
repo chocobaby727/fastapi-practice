@@ -1,10 +1,13 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
-from database import Base
 from datetime import datetime
 
-class Todos(Base):
+from sqlalchemy import Boolean, Column, DateTime, Integer, String
+
+from database import Base
+
+
+class Todo(Base):
     __tablename__ = "Todos"
-    
+
     id = Column(Integer, primary_key=True)
     title = Column(String(512), nullable=False)
     description = Column(String(512))
