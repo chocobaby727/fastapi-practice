@@ -1,9 +1,10 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
-// README at: https://github.com/devcontainers/templates/tree/main/src/debian
+// README at: https://github.com/devcontainers/templates/tree/main/src/postgres
 {
-	"name": "FastAPI",
-	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "tiangolo/uvicorn-gunicorn-fastapi:python3.11",
+	"name": "FastAPI practice",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "app",
+	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
@@ -32,13 +33,11 @@
 		}
 	},
 
-	"postAttachCommand": "bash ./.devcontainer/postAttach.sh"
+	"postAttachCommand": "bash ./.devcontainer/scripts/postAttach.sh",
+	"postCreateCommand": "bash ./.devcontainer/scripts/postCreate.sh",
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-
-	// Configure tool-specific properties.
-	// "customizations": {},
+	"forwardPorts": [3306]
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
