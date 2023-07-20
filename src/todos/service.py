@@ -1,11 +1,9 @@
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Path, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-import src.todos.models
 from src.todos.models import Todo
 from src.todos.schemas import TodoCreate
 
@@ -40,3 +38,8 @@ def update_todo(db: Session, new_todo: TodoCreate, original_todo: Todo) -> Todo:
     db.refresh(original_todo)
 
     return original_todo
+
+
+def delete_todo(db: Session, original_todo: Todo) -> None:
+    db.delete(original_todo)
+    db.commit()

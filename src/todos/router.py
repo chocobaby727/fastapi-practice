@@ -102,3 +102,24 @@ async def update_todo(
     updated_todo = service.update_todo(db, todo_update, original_todo)
 
     return updated_todo
+
+
+@router.delete("/{todo_id}", status_code=status.HTTP_200_OK, response_model=None)
+async def delete_todo(todo_id: int, db: Session = Depends(get_db)):
+    """
+    タスクを１件削除する
+
+    タスクのIDが存在しなかった場合エラー
+
+    - **todo_id**: タスクのID
+    """
+    
+    original_todo = service.fetch_todo(db, todo_id)
+
+    if original_todo is None:
+        raise HTTPException(
+            detail="Todo Not Found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+        
+    service.delete_todo(db, original_todo)
