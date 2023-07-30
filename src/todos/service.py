@@ -8,18 +8,22 @@ from src.todos.models import Todo
 from src.todos.schemas import TodoCreate
 
 
-def fetch_all_todo(db: Session) -> list[Todo]:
-    todos: list[Todo] = db.execute(select(Todo)).scalars().all()
+def fetch_all_todo(db: Session, user_id: int) -> list[Todo]:
+    todos: list[Todo] = (
+        db.execute(select(Todo).where(Todo.user_id == user_id)).scalars().all()
+    )
     return todos
 
 
-def fetch_todo(db: Session, todo_id: int) -> Optional[Todo]:
-    todo: Todo = db.execute(select(Todo).where(Todo.id == todo_id)).scalar()
+def fetch_todo(db: Session, todo_id: int, user_id: int) -> Optional[Todo]:
+    todo: Todo = db.execute(
+        select(Todo).where(Todo.id == todo_id).where(Todo.user_id == user_id)
+    ).scalar()
     return todo
 
 
-def create_todo(db: Session, todo_create: TodoCreate) -> Todo:
-    new_todo = Todo(**todo_create.dict())
+def create_todo(db: Session, todo_create: TodoCreate, user_id: str) -> Todo:
+    new_todo = Todo(**todo_create.dict(), user_id=user_id)
     db.add(new_todo)
     db.commit()
     db.refresh(new_todo)

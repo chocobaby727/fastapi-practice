@@ -1,1 +1,1 @@
-pip install sqlalchemy pymysql 
+pip install -r requirements.txt
