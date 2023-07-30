@@ -1,5 +1,8 @@
+from typing import Annotated
+
+from fastapi import Depends
 from sqlalchemy import create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 DB_URL = "mysql+pymysql://root@db:3306/sample?charset=utf8"
 
@@ -12,3 +15,6 @@ Base = declarative_base()
 def get_db():
     with db_session() as session:
         yield session
+
+
+db_dependency = Annotated[Session, Depends(get_db)]
